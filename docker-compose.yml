@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  visual-sql-app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "8080:5173"  # Map localhost:8080 to container:5173
+    volumes:
+      - .:/app          # Mount current directory to /app in container
+      - /app/node_modules  # Prevent node_modules from being overwritten
+    environment:
+      - NODE_ENV=development
+      - CHOKIDAR_USEPOLLING=true  # Enable hot reload in Docker
+    stdin_open: true    # Keep container running
+    tty: true          # Allocate pseudo-TTY
+    restart: unless-stopped
+    container_name: visual-sql-dev

@@ -6,7 +6,11 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "docker:dev": "docker-compose up",
+    "docker:build": "docker-compose build",
+    "docker:down": "docker-compose down",
+    "docker:clean": "docker-compose down -v --rmi all"
   },
   "dependencies": {
     "@duckdb/duckdb-wasm": "^1.29.1-dev132.0",

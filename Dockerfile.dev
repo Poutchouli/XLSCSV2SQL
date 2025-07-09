@@ -1,0 +1,26 @@
+# Use Node.js 24 Alpine for smaller image size and better performance
+FROM node:24-alpine
+
+# Set working directory inside container
+WORKDIR /app
+
+# Install dependencies for building native modules (needed for some packages)
+RUN apk add --no-cache python3 make g++
+
+# Copy package files first for better Docker layer caching
+COPY package*.json ./
+
+# Install dependencies
+RUN npm install --legacy-peer-deps
+
+# Copy the rest of the application code
+COPY . .
+
+# Expose the port that Vite uses
+EXPOSE 5173
+
+# Set environment variable to ensure Vite listens on all interfaces
+ENV HOST=0.0.0.0
+
+# Start the development server
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
