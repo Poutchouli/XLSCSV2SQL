@@ -10,14 +10,13 @@ export default defineConfig({
     // The internal port inside the container
     port: 5173,      
 
-    // This is the key: tell Vite's client to connect to the port exposed by Docker
-    hmr: {
-      clientPort: 8080 
-    },
+    // Disable WebSocket-based HMR for Docker reliability
+    hmr: false,
 
     // This helps Vite detect file changes when running in Docker
     watch: {
-      usePolling: true 
+      usePolling: true,
+      interval: 1000
     },
 
     // Headers required for SharedWorker

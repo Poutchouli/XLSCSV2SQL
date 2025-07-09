@@ -175,3 +175,28 @@ button:focus-visible {
   padding: 5px 10px;
   border-radius: 5px;
 }
+
+/* Node styling for draggable table nodes */
+.node {
+  background: white;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  padding: 10px 15px;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  cursor: move;
+  /* We use transform for positioning now, which is better for performance */
+  left: 0;
+  top: 0;
+  user-select: none;
+  position: absolute;
+}
+
+.node:hover {
+  border-color: #646cff;
+  box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+}
+
+.node strong {
+  color: #333;
+  font-size: 14px;
+}

@@ -14,11 +14,13 @@ const App: Component = () => {
   const [activeFile, setActiveFile] = createStore<{ 
     text: string, 
     buffer: ArrayBuffer | null, 
-    name: string 
+    name: string,
+    dropPosition: { x: number, y: number }
   }>({
     text: '',
     buffer: null,
-    name: ''
+    name: '',
+    dropPosition: { x: 0, y: 0 }
   });
 
   onMount(() => {
@@ -70,8 +72,8 @@ const App: Component = () => {
     workerService.off('ERROR');
   });
 
-  const handleFileDrop = async (file: File) => {
-    console.log('[UI] File drop event triggered with file:', file.name); // 8. Log file drop
+  const handleFileDrop = async (file: File, position: { x: number; y: number }) => {
+    console.log('[UI] File drop event triggered with file:', file.name, 'at position:', position); // 8. Log file drop
     
     if (dbStatus() !== 'ready') {
       console.warn('[UI] File dropped, but DB not ready. Current status:', dbStatus());
@@ -89,7 +91,8 @@ const App: Component = () => {
         setActiveFile({
           text: text,
           buffer: buffer,
-          name: file.name.replace(/\.[^/.]+$/, "") // Remove file extension
+          name: file.name.replace(/\.[^/.]+$/, ""), // Remove file extension
+          dropPosition: position
         });
         setModalOpen(true);
         console.log('[UI] CSV preview modal opened');
@@ -103,22 +106,35 @@ const App: Component = () => {
     }
   };
 
+
+
+
   const handleModalConfirm = (separator: string, hasHeaders: boolean) => {
     if (activeFile.buffer) {
-      console.log(`[UI] Sending IMPORT_FILE command to worker. Table: ${activeFile.name}, separator: ${separator}, headers: ${hasHeaders}`); // 10. Log command sending
+      console.log(`[UI] Sending IMPORT_FILE command to worker. Table: ${activeFile.name}, separator: ${separator}, headers: ${hasHeaders}, position:`, activeFile.dropPosition);
       
-      const requestId = workerService.importFile(activeFile.buffer, activeFile.name, separator, hasHeaders);
+      // THIS IS THE FIX: Extract plain values from the reactive store
+      // Do not pass the activeFile proxy object properties directly
+      const plainBuffer = activeFile.buffer;
+      const plainName = activeFile.name;
+      const plainPosition = { ...activeFile.dropPosition }; // Create a clean copy
+      
+      // Send using plain JavaScript values, not reactive store properties
+      const requestId = workerService.importFile(plainBuffer, plainName, separator, hasHeaders, plainPosition);
       console.log(`[UI] Import request sent with ID: ${requestId}`);
     } else {
       console.error('[UI] ❌ No file buffer available for import');
     }
     setModalOpen(false);
-    setActiveFile({ text: '', buffer: null, name: '' });
+    setActiveFile({ text: '', buffer: null, name: '', dropPosition: { x: 0, y: 0 } });
   };
+
+
+
 
   const handleModalClose = () => {
     setModalOpen(false);
-    setActiveFile({ text: '', buffer: null, name: '' });
+    setActiveFile({ text: '', buffer: null, name: '', dropPosition: { x: 0, y: 0 } });
   };
 
   const handleNodePositionUpdate = (nodeId: string, position: { x: number; y: number }) => {

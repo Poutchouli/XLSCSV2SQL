@@ -162,10 +162,11 @@ async function handleImportFile(payload: {
     fileBuffer: ArrayBuffer, 
     desiredTableName: string,
     separator?: string,
-    hasHeaders?: boolean
+    hasHeaders?: boolean,
+    position?: { x: number; y: number }
 }) {
-    const { requestId, fileBuffer, desiredTableName, separator = ',', hasHeaders = true } = payload;
-    console.log(`[WORKER] Starting file import for table: ${desiredTableName}`);
+    const { requestId, fileBuffer, desiredTableName, separator = ',', hasHeaders = true, position = { x: 100, y: 100 } } = payload;
+    console.log(`[WORKER] Starting file import for table: ${desiredTableName} at position:`, position);
     
     if (!db) {
         throw new Error('Database not initialized');
@@ -244,7 +245,7 @@ async function handleImportFile(payload: {
                 node: {
                     id: desiredTableName,
                     type: 'table',
-                    position: { x: 100, y: 100 },
+                    position: position,
                     data: {
                         schema,
                         rowCount,

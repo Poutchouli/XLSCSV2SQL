@@ -10,7 +10,7 @@ interface CanvasProps {
     nodes: TableNode[];
     onNodePositionUpdate: (nodeId: string, position: { x: number; y: number }) => void;
     onNodeClick: (node: TableNode) => void;
-    onFileDrop: (file: File) => void;
+    onFileDrop: (file: File, position: { x: number; y: number }) => void;
 }
 
 export const Canvas: Component<CanvasProps> = (props) => {
@@ -81,7 +81,13 @@ export const Canvas: Component<CanvasProps> = (props) => {
         if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
             const file = e.dataTransfer.files[0];
             if (file && (file.type === 'text/csv' || file.name.endsWith('.csv'))) {
-                props.onFileDrop(file);
+                // Capture the mouse position relative to the canvas
+                const rect = canvasRef?.getBoundingClientRect();
+                const position = {
+                    x: rect ? e.clientX - rect.left : e.clientX,
+                    y: rect ? e.clientY - rect.top : e.clientY
+                };
+                props.onFileDrop(file, position);
             }
         }
     };
