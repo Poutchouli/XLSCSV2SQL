@@ -1,6 +1,7 @@
 // src/workers/database.worker.ts
 
 import * as duckdb from '@duckdb/duckdb-wasm';
+import Papa from 'papaparse';
 
 const connectedPorts: MessagePort[] = [];
 let db: duckdb.AsyncDuckDB;
@@ -39,7 +40,7 @@ async function initializeDuckDB() {
 }
 
 // Handle new connections from tabs
-onconnect = (event: MessageEvent) => {
+(self as any).onconnect = (event: MessageEvent) => {
     const port = event.ports[0];
     connectedPorts.push(port);
 
@@ -112,17 +113,55 @@ function broadcast(message: any) {
 async function handleImportFile(payload: { 
     requestId: string, 
     fileBuffer: ArrayBuffer, 
-    desiredTableName: string 
+    desiredTableName: string,
+    separator?: string,
+    hasHeaders?: boolean
 }) {
-    const { requestId, fileBuffer, desiredTableName } = payload;
+    const { requestId, fileBuffer, desiredTableName, separator = ',', hasHeaders = true } = payload;
     
     if (!db) {
         throw new Error('Database not initialized');
     }
     
     try {
-        // Register the file buffer with DuckDB
-        await db.registerFileBuffer(`${desiredTableName}.csv`, new Uint8Array(fileBuffer));
+        // Convert ArrayBuffer to text for Papa Parse
+        const csvText = new TextDecoder().decode(fileBuffer);
+        
+        // Parse CSV with Papa Parse
+        const parseResult = Papa.parse(csvText, {
+            delimiter: separator,
+            header: hasHeaders,
+            skipEmptyLines: true,
+            dynamicTyping: true, // Automatically detect types
+        });
+
+        if (parseResult.errors.length > 0) {
+            console.warn('CSV parsing warnings:', parseResult.errors);
+        }
+
+        // Create CSV content for DuckDB
+        let processedCsv: string;
+        if (hasHeaders) {
+            // Papa Parse already handled headers
+            processedCsv = Papa.unparse(parseResult.data, {
+                header: true,
+                delimiter: ','  // Use comma for DuckDB
+            });
+        } else {
+            // Create headers for data without headers
+            const firstRow = parseResult.data[0] as any[];
+            const headers = firstRow ? firstRow.map((_, i) => `Column_${i + 1}`) : [];
+            processedCsv = Papa.unparse(parseResult.data, {
+                header: false,
+                delimiter: ','
+            });
+            // Prepend headers
+            processedCsv = headers.join(',') + '\n' + processedCsv;
+        }
+
+        // Register the processed CSV with DuckDB
+        const csvBuffer = new TextEncoder().encode(processedCsv);
+        await db.registerFileBuffer(`${desiredTableName}.csv`, csvBuffer);
         
         // Create a connection and import the CSV
         const c = await db.connect();

@@ -89,10 +89,12 @@ class WorkerService {
     }
 
     // Import a CSV file
-    importFile(fileBuffer: ArrayBuffer, tableName: string): string {
+    importFile(fileBuffer: ArrayBuffer, tableName: string, separator: string = ',', hasHeaders: boolean = true): string {
         return this.sendCommand('IMPORT_FILE', {
             fileBuffer,
-            desiredTableName: tableName
+            desiredTableName: tableName,
+            separator,
+            hasHeaders
         });
     }
 

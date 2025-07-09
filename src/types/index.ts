@@ -1,5 +1,7 @@
 // src/types/index.ts
 
+import type { ParseResult, ParseConfig } from 'papaparse';
+
 export interface TableSchema {
     cid: number;
     name: string;
@@ -46,4 +48,26 @@ export interface WorkerEvent {
 export interface DragDropContext {
     draggedNode?: TableNode;
     dropZone?: string;
+}
+
+// Papa Parse related types
+export interface CSVParseResult extends ParseResult<any> {
+    // Extended with our custom properties
+    fileName?: string;
+    estimatedRows?: number;
+}
+
+export interface CSVImportConfig extends ParseConfig {
+    // Our custom configuration options
+    maxPreviewRows?: number;
+    detectTypes?: boolean;
+    tableName?: string;
+}
+
+export interface CSVPreview {
+    headers: string[];
+    sample: any[][];
+    totalRows: number;
+    fileName: string;
+    estimatedSize: number;
 }

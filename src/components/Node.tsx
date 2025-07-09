@@ -12,7 +12,8 @@ interface NodeProps {
 }
 
 export const Node: Component<NodeProps> = (props) => {
-    const draggable = createDraggable(props.node.id);
+    // Note: This component is not currently used, keeping for reference
+    createDraggable(props.node.id);
 
     const handleClick = () => {
         props.onNodeClick(props.node);

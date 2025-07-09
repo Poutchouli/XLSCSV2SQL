@@ -6,6 +6,8 @@ A powerful, browser-based visual SQL environment built with SolidJS, TypeScript,
 
 ### Phase 1 (Current Implementation)
 - **Drag & Drop CSV Import**: Simply drag CSV files onto the canvas to import them as database tables
+- **CSV Preview Modal**: Preview your data before import with configurable separator and header options
+- **Advanced CSV Parsing**: Powered by Papa Parse for robust CSV handling with automatic type detection
 - **Visual Node Interface**: Each imported table appears as a draggable node showing schema and row count
 - **In-Browser Database**: Powered by DuckDB-WASM running in a SharedWorker for optimal performance
 - **Real-time Data Processing**: Full SQL capabilities with no server required
@@ -23,6 +25,7 @@ A powerful, browser-based visual SQL environment built with SolidJS, TypeScript,
 - **Frontend**: SolidJS with TypeScript
 - **Build Tool**: Vite
 - **Database**: DuckDB-WASM (in-browser SQL analytics)
+- **CSV Parsing**: Papa Parse for robust CSV handling
 - **Worker Architecture**: SharedWorker for database isolation
 - **Drag & Drop**: @thisbeyond/solid-dnd
 - **Type Safety**: Full TypeScript support
@@ -93,7 +96,9 @@ The application will be available at `http://localhost:5173`
 ### Common Usage Steps
 2. **Import Data**: 
    - Drag and drop any CSV file onto the canvas
-   - The file will be automatically imported as a database table
+   - A preview modal will appear showing your data
+   - Configure separator (comma, semicolon, tab, pipe) and header settings
+   - Click "Confirm and Import" to create the database table
    - A visual node will appear showing the table schema and row count
 
 3. **Interact with Nodes**:

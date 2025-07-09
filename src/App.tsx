@@ -3,12 +3,23 @@ import { createSignal, onMount, onCleanup } from 'solid-js';
 import { createStore } from 'solid-js/store';
 import { workerService } from './services/workerService';
 import { Canvas } from './components/Canvas';
+import { CsvPreviewModal } from './components/CsvPreviewModal';
 import type { TableNode } from './types';
 
 const App: Component = () => {
   const [nodes, setNodes] = createStore<TableNode[]>([]);
   const [isDbInitialized, setIsDbInitialized] = createSignal(false);
   const [selectedNode, setSelectedNode] = createSignal<TableNode | null>(null);
+  const [isModalOpen, setModalOpen] = createSignal(false);
+  const [activeFile, setActiveFile] = createStore<{ 
+    text: string, 
+    buffer: ArrayBuffer | null, 
+    name: string 
+  }>({
+    text: '',
+    buffer: null,
+    name: ''
+  });
 
   onMount(() => {
     // Set up event handlers for worker messages
@@ -51,16 +62,37 @@ const App: Component = () => {
       return;
     }
 
-    try {
-      const buffer = await file.arrayBuffer();
-      const tableName = file.name.replace(/\.[^/.]+$/, ""); // Remove file extension
-      
-      console.log(`Importing file: ${file.name} as table: ${tableName}`);
-      workerService.importFile(buffer, tableName);
-    } catch (error) {
-      console.error('Error reading file:', error);
-      alert('Failed to read the file');
+    if (file && (file.type === "text/csv" || file.name.endsWith('.csv'))) {
+      try {
+        const text = await file.text();
+        const buffer = await file.arrayBuffer();
+        setActiveFile({
+          text: text,
+          buffer: buffer,
+          name: file.name.replace(/\.[^/.]+$/, "") // Remove file extension
+        });
+        setModalOpen(true);
+      } catch (error) {
+        console.error('Error reading file:', error);
+        alert('Failed to read the file');
+      }
+    } else {
+      alert("Please drop a CSV file.");
     }
+  };
+
+  const handleModalConfirm = (separator: string, hasHeaders: boolean) => {
+    if (activeFile.buffer) {
+      console.log(`Importing file: ${activeFile.name} with separator: ${separator}, headers: ${hasHeaders}`);
+      workerService.importFile(activeFile.buffer, activeFile.name, separator, hasHeaders);
+    }
+    setModalOpen(false);
+    setActiveFile({ text: '', buffer: null, name: '' });
+  };
+
+  const handleModalClose = () => {
+    setModalOpen(false);
+    setActiveFile({ text: '', buffer: null, name: '' });
   };
 
   const handleNodePositionUpdate = (nodeId: string, position: { x: number; y: number }) => {
@@ -168,6 +200,15 @@ const App: Component = () => {
           </button>
         </div>
       )}
+
+      {/* CSV Preview Modal */}
+      <CsvPreviewModal
+        isOpen={isModalOpen()}
+        fileText={activeFile.text}
+        fileName={activeFile.name}
+        onConfirm={handleModalConfirm}
+        onClose={handleModalClose}
+      />
     </div>
   );
 };
