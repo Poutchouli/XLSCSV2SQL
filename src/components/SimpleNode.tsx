@@ -77,23 +77,24 @@ export const SimpleNode: Component<SimpleNodeProps> = (props) => {
         >
             {/* Header */}
             <div style={{
-                'font-weight': 'bold',
-                'font-size': '14px',
+                'font-weight': '800',
+                'font-size': '16px',
                 color: '#1f2937',
-                'margin-bottom': '8px',
+                'margin-bottom': '12px',
                 'display': 'flex',
                 'justify-content': 'space-between',
                 'align-items': 'center',
                 'pointer-events': 'none' // Prevent interference with drag
             }}>
-                <span>{props.node.id}</span>
+                <span>📊 {props.node.id}</span>
                 <span style={{
                     'font-size': '12px',
-                    'font-weight': 'normal',
-                    color: '#6b7280',
-                    'background-color': '#f3f4f6',
-                    padding: '2px 6px',
-                    'border-radius': '4px'
+                    'font-weight': '700',
+                    color: '#ffffff',
+                    'background': 'linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)',
+                    padding: '4px 10px',
+                    'border-radius': '8px',
+                    'box-shadow': '0 2px 8px rgba(59, 130, 246, 0.3)'
                 }}>
                     {props.node.data.rowCount} rows
                 </span>
@@ -101,26 +102,34 @@ export const SimpleNode: Component<SimpleNodeProps> = (props) => {
 
             {/* Schema */}
             <div style={{
-                'font-size': '12px',
-                'max-height': '200px',
+                'font-size': '13px',
+                'max-height': '240px',
                 'overflow-y': 'auto',
-                'pointer-events': 'none' // Prevent interference with drag
+                'pointer-events': 'none', // Prevent interference with drag
+                'background-color': '#f8fafc',
+                padding: '12px',
+                'border-radius': '8px',
+                'border-left': '4px solid #3b82f6'
             }}>
                 <For each={props.node.data.schema.slice(0, 10)}>
                     {(column) => (
                         <div style={{
                             'display': 'flex',
                             'justify-content': 'space-between',
-                            'margin-bottom': '4px',
-                            'padding': '2px 0'
+                            'margin-bottom': '6px',
+                            'padding': '4px 0'
                         }}>
-                            <span style={{ color: '#374151', 'font-weight': '500' }}>
+                            <span style={{ 
+                                color: '#1f2937', 
+                                'font-weight': '600' 
+                            }}>
                                 {column.name}
                             </span>
                             <span style={{ 
-                                color: '#6b7280',
+                                color: '#3b82f6',
                                 'font-family': 'monospace',
-                                'font-size': '11px'
+                                'font-size': '12px',
+                                'font-weight': '500'
                             }}>
                                 {column.type}
                             </span>
@@ -129,9 +138,10 @@ export const SimpleNode: Component<SimpleNodeProps> = (props) => {
                 </For>
                 {props.node.data.schema.length > 10 && (
                     <div style={{
-                        color: '#9ca3af',
+                        color: '#6b7280',
                         'font-style': 'italic',
-                        'margin-top': '4px'
+                        'margin-top': '8px',
+                        'font-weight': '500'
                     }}>
                         +{props.node.data.schema.length - 10} more columns...
                     </div>
@@ -140,16 +150,17 @@ export const SimpleNode: Component<SimpleNodeProps> = (props) => {
 
             {/* Type indicator */}
             <div style={{
-                'margin-top': '8px',
-                'padding-top': '8px',
-                'border-top': '1px solid #e5e7eb',
+                'margin-top': '12px',
+                'padding-top': '12px',
+                'border-top': '2px solid #e5e7eb',
                 'pointer-events': 'none' // Prevent interference with drag
             }}>
                 <span style={{
-                    'font-size': '11px',
-                    color: '#6b7280',
+                    'font-size': '12px',
+                    color: '#3b82f6',
                     'text-transform': 'uppercase',
-                    'letter-spacing': '0.5px'
+                    'letter-spacing': '1px',
+                    'font-weight': '700'
                 }}>
                     {props.node.type}
                 </span>
