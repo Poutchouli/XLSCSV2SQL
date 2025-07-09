@@ -23,6 +23,32 @@ export const Canvas: Component<CanvasProps> = (props) => {
         if (canvasRef) {
             canvasRef.style.willChange = 'transform';
             canvasRef.style.transform = 'translateZ(0)';
+            
+            // Add throttled mouse movement debugging
+            let lastLogTime = 0;
+            const logInterval = 500; // Log every 500ms
+            
+            const handleMouseMove = (e: MouseEvent) => {
+                const now = Date.now();
+                if (now - lastLogTime > logInterval) {
+                    const rect = canvasRef!.getBoundingClientRect();
+                    const relativePosition = {
+                        x: e.clientX - rect.left,
+                        y: e.clientY - rect.top
+                    };
+                    lastLogTime = now;
+                }
+            };
+            
+            // Add the event listener
+            canvasRef.addEventListener('mousemove', handleMouseMove);
+            
+            // Cleanup function
+            return () => {
+                if (canvasRef) {
+                    canvasRef.removeEventListener('mousemove', handleMouseMove);
+                }
+            };
         }
     });
 
@@ -31,45 +57,35 @@ export const Canvas: Component<CanvasProps> = (props) => {
     };
 
     const handleDragEnd = ({ draggable, droppable }: any) => {
-        console.log('Drag end event:', { draggable, droppable });
+        console.log('[DRAG DEBUG] Drag end event:', { draggable, droppable });
         
-        if (draggable && !droppable) {
-            // Use RAF for smooth position updates and batch DOM updates
-            requestAnimationFrame(() => {
-                const node = props.nodes.find(n => n.id === draggable.id);
-                if (node && canvasRef) {
-                    console.log('Draggable properties:', Object.keys(draggable));
-                    console.log('Draggable transform:', draggable.transform);
-                    
-                    // The key insight: solid-dnd handles positioning internally
-                    // We just need to read the final transformed position
-                    const transformedLayout = draggable.transformed;
-                    
-                    if (transformedLayout) {
-                        // Use the transformed layout position directly
-                        const newPosition = {
-                            x: Math.round(transformedLayout.x),
-                            y: Math.round(transformedLayout.y)
-                        };
-                        
-                        console.log('Using transformed layout position:', newPosition);
-                        
-                        // Apply bounds checking
-                        const canvasRect = canvasRef.getBoundingClientRect();
-                        const padding = 20;
-                        const nodeWidth = 300;
-                        const nodeHeight = 250;
-                        
-                        newPosition.x = Math.max(padding, Math.min(newPosition.x, canvasRect.width - nodeWidth - padding));
-                        newPosition.y = Math.max(padding, Math.min(newPosition.y, canvasRect.height - nodeHeight - padding));
-                        
-                        console.log('Final position after bounds check:', newPosition);
-                        props.onNodePositionUpdate(node.id, newPosition);
-                    } else {
-                        console.warn('No transformed layout available:', draggable);
-                    }
-                }
-            });
+        if (draggable) {
+            // Find the node that was dragged
+            const node = props.nodes.find(n => n.id === draggable.id);
+            if (node && draggable.transformed && canvasRef) {
+                console.log('[DRAG DEBUG] Original node position:', node.position);
+                console.log('[DRAG DEBUG] Drag transform distance:', draggable.transformed);
+                console.log('[DRAG DEBUG] All draggable properties:', Object.keys(draggable));
+                
+                // The final position is where the ghost ended up
+                // draggable.transformed gives us the distance moved from the original position
+                const finalPosition = {
+                    x: Math.round(node.position.x + draggable.transformed.x),
+                    y: Math.round(node.position.y + draggable.transformed.y)
+                };
+                
+                console.log('[DRAG DEBUG] Moving node to final position:', finalPosition);
+                
+                // Move the node to the exact location where the ghost was dropped
+                props.onNodePositionUpdate(node.id, finalPosition);
+            } else {
+                console.warn('[DRAG DEBUG] Missing data:', { 
+                    nodeFound: !!node, 
+                    hasTransform: !!draggable.transformed,
+                    hasCanvas: !!canvasRef,
+                    draggableKeys: draggable ? Object.keys(draggable) : []
+                });
+            }
         }
         setDraggedNode(null);
     };
@@ -87,6 +103,19 @@ export const Canvas: Component<CanvasProps> = (props) => {
                     x: rect ? e.clientX - rect.left : e.clientX,
                     y: rect ? e.clientY - rect.top : e.clientY
                 };
+                
+                console.log('[FILE DROP DEBUG] Drop event details:', {
+                    client: { x: e.clientX, y: e.clientY },
+                    calculated: position,
+                    canvasRect: rect ? { 
+                        left: rect.left, 
+                        top: rect.top, 
+                        width: rect.width, 
+                        height: rect.height 
+                    } : null,
+                    fileName: file.name
+                });
+                
                 props.onFileDrop(file, position);
             }
         }
@@ -189,8 +218,8 @@ export const Canvas: Component<CanvasProps> = (props) => {
                             'font-family': 'system-ui, sans-serif',
                             'user-select': 'none',
                             'z-index': '10000',
-                            opacity: '0.98',
-                            transform: 'rotate(2deg) scale(1.08)',
+                            opacity: '0.9', // Make it slightly transparent for better visibility
+                            transform: 'rotate(1deg) scale(1.05)', // Slight rotation and scale for ghost effect
                             'pointer-events': 'none',
                             // Performance optimizations for drag overlay
                             'will-change': 'transform',
@@ -247,7 +276,7 @@ export const Canvas: Component<CanvasProps> = (props) => {
                                 padding: '6px 12px',
                                 'border-radius': '6px'
                             }}>
-                                ↗ MOVING...
+                                ↗ DRAGGING...
                             </div>
                         </div>
                     )}

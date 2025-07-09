@@ -11,6 +11,7 @@ const App: Component = () => {
   const [dbStatus, setDbStatus] = createSignal<'initializing' | 'ready' | 'error'>('initializing');
   const [selectedNode, setSelectedNode] = createSignal<TableNode | null>(null);
   const [isModalOpen, setModalOpen] = createSignal(false);
+  const [mousePosition, setMousePosition] = createSignal({ x: 0, y: 0 });
   const [activeFile, setActiveFile] = createStore<{ 
     text: string, 
     buffer: ArrayBuffer | null, 
@@ -23,8 +24,18 @@ const App: Component = () => {
     dropPosition: { x: 0, y: 0 }
   });
 
+  // Mouse tracking for live position display
+  let handleMouseMove: (e: MouseEvent) => void;
+
   onMount(() => {
     console.log('[UI] App mounted, setting up worker event handlers'); // Initial UI log
+    
+    // Set up global mouse position tracking
+    handleMouseMove = (e: MouseEvent) => {
+      setMousePosition({ x: e.clientX, y: e.clientY });
+    };
+    
+    document.addEventListener('mousemove', handleMouseMove);
     
     // Set up event handlers for worker messages
     workerService.on('DB_INITIALIZED', (payload) => {
@@ -62,6 +73,10 @@ const App: Component = () => {
 
   onCleanup(() => {
     console.log('[UI] Cleaning up worker event handlers');
+    
+    // Clean up mouse event listener
+    document.removeEventListener('mousemove', handleMouseMove);
+    
     // Clean up event handlers
     workerService.off('DB_INITIALIZED');
     workerService.off('DB_INIT_ERROR');
@@ -114,12 +129,10 @@ const App: Component = () => {
       console.log(`[UI] Sending IMPORT_FILE command to worker. Table: ${activeFile.name}, separator: ${separator}, headers: ${hasHeaders}, position:`, activeFile.dropPosition);
       
       // THIS IS THE FIX: Extract plain values from the reactive store
-      // Do not pass the activeFile proxy object properties directly
       const plainBuffer = activeFile.buffer;
       const plainName = activeFile.name;
-      const plainPosition = { ...activeFile.dropPosition }; // Create a clean copy
+      const plainPosition = { ...activeFile.dropPosition };
       
-      // Send using plain JavaScript values, not reactive store properties
       const requestId = workerService.importFile(plainBuffer, plainName, separator, hasHeaders, plainPosition);
       console.log(`[UI] Import request sent with ID: ${requestId}`);
     } else {
@@ -138,14 +151,23 @@ const App: Component = () => {
   };
 
   const handleNodePositionUpdate = (nodeId: string, position: { x: number; y: number }) => {
+    console.log('[POSITION DEBUG] Node position update requested:', { nodeId, position });
+    
     // Use batch updates for better performance
     const nodeIndex = nodes.findIndex(n => n.id === nodeId);
     if (nodeIndex >= 0) {
       // Only update if position actually changed to avoid unnecessary re-renders
       const currentNode = nodes[nodeIndex];
+      console.log('[POSITION DEBUG] Current node position:', currentNode.position);
+      
       if (currentNode.position.x !== position.x || currentNode.position.y !== position.y) {
+        console.log('[POSITION DEBUG] Updating position from', currentNode.position, 'to', position);
         setNodes(nodeIndex, 'position', position);
+      } else {
+        console.log('[POSITION DEBUG] Position unchanged, skipping update');
       }
+    } else {
+      console.warn('[POSITION DEBUG] Node not found for position update:', nodeId);
     }
   };
 
@@ -182,6 +204,19 @@ const App: Component = () => {
         </h1>
         
         <div style={{ 'margin-left': 'auto', display: 'flex', 'align-items': 'center', gap: '12px' }}>
+          {/* Mouse Position Display */}
+          <div style={{
+            'font-size': '12px',
+            color: '#6b7280',
+            'font-family': 'monospace',
+            'background-color': '#f9fafb',
+            padding: '4px 8px',
+            'border-radius': '4px',
+            border: '1px solid #e5e7eb'
+          }}>
+            Mouse: {mousePosition().x}, {mousePosition().y}
+          </div>
+          
           <div style={{
             padding: '4px 8px',
             'border-radius': '4px',

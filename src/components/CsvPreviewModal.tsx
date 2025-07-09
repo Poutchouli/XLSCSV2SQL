@@ -103,7 +103,8 @@ export const CsvPreviewModal: Component<CsvPreviewModalProps> = (props) => {
                 <label style={{ 
                   display: 'block', 
                   'margin-bottom': '8px', 
-                  'font-weight': '500' 
+                  'font-weight': '500',
+                  color: '#000000'
                 }}>
                   Separator:
                 </label>
@@ -113,7 +114,8 @@ export const CsvPreviewModal: Component<CsvPreviewModalProps> = (props) => {
                       display: 'inline-flex', 
                       'align-items': 'center', 
                       'margin-right': '16px',
-                      cursor: 'pointer'
+                      cursor: 'pointer',
+                      color: '#000000'
                     }}>
                       <input
                         type="radio"
@@ -134,7 +136,8 @@ export const CsvPreviewModal: Component<CsvPreviewModalProps> = (props) => {
                   display: 'flex', 
                   'align-items': 'center', 
                   gap: '8px',
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  color: '#000000'
                 }}>
                   <input
                     type="checkbox"
@@ -167,7 +170,7 @@ export const CsvPreviewModal: Component<CsvPreviewModalProps> = (props) => {
                             'text-align': 'left',
                             'border-bottom': '1px solid #e5e7eb',
                             'font-weight': '600',
-                            color: '#374151'
+                            color: '#000000'
                           }}>
                             {col}
                           </th>
@@ -186,7 +189,7 @@ export const CsvPreviewModal: Component<CsvPreviewModalProps> = (props) => {
                                <td style={{
                                  padding: '12px',
                                  'border-bottom': '1px solid #e5e7eb',
-                                 color: '#6b7280',
+                                 color: '#000000',
                                  'max-width': '150px',
                                  overflow: 'hidden',
                                  'text-overflow': 'ellipsis',
@@ -216,6 +219,7 @@ export const CsvPreviewModal: Component<CsvPreviewModalProps> = (props) => {
                   border: '1px solid #d1d5db',
                   'border-radius': '6px',
                   'background-color': 'white',
+                  color: '#000000',
                   cursor: 'pointer'
                 }}
               >
