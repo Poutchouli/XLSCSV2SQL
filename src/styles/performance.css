@@ -1,0 +1,42 @@
+/* Performance optimizations for drag and drop */
+
+/* Hardware acceleration for better performance */
+.canvas-container {
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+}
+
+/* Optimize draggable nodes */
+.draggable-node {
+  will-change: transform, box-shadow;
+  backface-visibility: hidden;
+  transform-origin: center center;
+}
+
+/* Smooth drag overlay */
+.drag-overlay {
+  will-change: transform;
+  backface-visibility: hidden;
+  pointer-events: none;
+}
+
+/* Prevent text selection during drag */
+.no-select {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* Optimize for 60fps animations */
+.smooth-transition {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Prevent layout thrashing */
+.transform-gpu {
+  transform: translateZ(0);
+  will-change: transform;
+}

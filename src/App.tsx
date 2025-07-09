@@ -122,9 +122,14 @@ const App: Component = () => {
   };
 
   const handleNodePositionUpdate = (nodeId: string, position: { x: number; y: number }) => {
+    // Use batch updates for better performance
     const nodeIndex = nodes.findIndex(n => n.id === nodeId);
     if (nodeIndex >= 0) {
-      setNodes(nodeIndex, 'position', position);
+      // Only update if position actually changed to avoid unnecessary re-renders
+      const currentNode = nodes[nodeIndex];
+      if (currentNode.position.x !== position.x || currentNode.position.y !== position.y) {
+        setNodes(nodeIndex, 'position', position);
+      }
     }
   };
 
