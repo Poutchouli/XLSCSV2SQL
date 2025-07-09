@@ -8,7 +8,7 @@ import type { TableNode } from './types';
 
 const App: Component = () => {
   const [nodes, setNodes] = createStore<TableNode[]>([]);
-  const [isDbInitialized, setIsDbInitialized] = createSignal(false);
+  const [dbStatus, setDbStatus] = createSignal<'initializing' | 'ready' | 'error'>('initializing');
   const [selectedNode, setSelectedNode] = createSignal<TableNode | null>(null);
   const [isModalOpen, setModalOpen] = createSignal(false);
   const [activeFile, setActiveFile] = createStore<{ 
@@ -22,69 +22,95 @@ const App: Component = () => {
   });
 
   onMount(() => {
+    console.log('[UI] App mounted, setting up worker event handlers'); // Initial UI log
+    
     // Set up event handlers for worker messages
-    workerService.on('DB_INITIALIZED', () => {
-      console.log('Database initialized successfully');
-      setIsDbInitialized(true);
+    workerService.on('DB_INITIALIZED', (payload) => {
+      console.info('[UI] ✔️ DB is ready. Unlocking UI.', payload); // 1. Log DB ready
+      setDbStatus('ready');
+    });
+
+    workerService.on('DB_INIT_ERROR', (payload) => {
+      console.error('[UI] ❌ Received DB initialization error:', payload.error); // 2. Log DB error
+      setDbStatus('error');
     });
 
     workerService.on('NODE_CREATED', (payload) => {
-      console.log('Node created:', payload);
+      console.info('[UI] ✔️ Node created event received. Adding to canvas:', payload); // 3. Log node creation
       setNodes([...nodes, payload.node]);
     });
 
     workerService.on('IMPORT_ERROR', (payload) => {
-      console.error('Import error:', payload.error);
+      console.error('[UI] ❌ Import error:', payload.error); // 4. Log import errors
       alert(`Failed to import file: ${payload.error}`);
     });
 
     workerService.on('QUERY_RESULT', (payload) => {
-      console.log('Query result:', payload);
+      console.log('[UI] Query result received:', payload); // 5. Log query results
     });
 
     workerService.on('QUERY_ERROR', (payload) => {
-      console.error('Query error:', payload.error);
+      console.error('[UI] ❌ Query error:', payload.error); // 6. Log query errors
+    });
+
+    workerService.on('ERROR', (payload) => {
+      console.error('[UI] ❌ General error from worker:', payload.error); // 7. Log general errors
     });
   });
 
   onCleanup(() => {
+    console.log('[UI] Cleaning up worker event handlers');
     // Clean up event handlers
     workerService.off('DB_INITIALIZED');
+    workerService.off('DB_INIT_ERROR');
     workerService.off('NODE_CREATED');
     workerService.off('IMPORT_ERROR');
     workerService.off('QUERY_RESULT');
     workerService.off('QUERY_ERROR');
+    workerService.off('ERROR');
   });
 
   const handleFileDrop = async (file: File) => {
-    if (!isDbInitialized()) {
+    console.log('[UI] File drop event triggered with file:', file.name); // 8. Log file drop
+    
+    if (dbStatus() !== 'ready') {
+      console.warn('[UI] File dropped, but DB not ready. Current status:', dbStatus());
       alert('Database is still initializing. Please wait...');
       return;
     }
 
     if (file && (file.type === "text/csv" || file.name.endsWith('.csv'))) {
+      console.log(`[UI] Processing dropped CSV file: ${file.name}, size: ${file.size} bytes`); // 9. Log file processing
       try {
         const text = await file.text();
         const buffer = await file.arrayBuffer();
+        console.log(`[UI] File read successfully. Text length: ${text.length}, Buffer size: ${buffer.byteLength}`);
+        
         setActiveFile({
           text: text,
           buffer: buffer,
           name: file.name.replace(/\.[^/.]+$/, "") // Remove file extension
         });
         setModalOpen(true);
+        console.log('[UI] CSV preview modal opened');
       } catch (error) {
-        console.error('Error reading file:', error);
+        console.error('[UI] ❌ Error reading file:', error);
         alert('Failed to read the file');
       }
     } else {
+      console.warn('[UI] Invalid file type dropped:', file.type, file.name);
       alert("Please drop a CSV file.");
     }
   };
 
   const handleModalConfirm = (separator: string, hasHeaders: boolean) => {
     if (activeFile.buffer) {
-      console.log(`Importing file: ${activeFile.name} with separator: ${separator}, headers: ${hasHeaders}`);
-      workerService.importFile(activeFile.buffer, activeFile.name, separator, hasHeaders);
+      console.log(`[UI] Sending IMPORT_FILE command to worker. Table: ${activeFile.name}, separator: ${separator}, headers: ${hasHeaders}`); // 10. Log command sending
+      
+      const requestId = workerService.importFile(activeFile.buffer, activeFile.name, separator, hasHeaders);
+      console.log(`[UI] Import request sent with ID: ${requestId}`);
+    } else {
+      console.error('[UI] ❌ No file buffer available for import');
     }
     setModalOpen(false);
     setActiveFile({ text: '', buffer: null, name: '' });
@@ -139,10 +165,10 @@ const App: Component = () => {
             padding: '4px 8px',
             'border-radius': '4px',
             'font-size': '12px',
-            'background-color': isDbInitialized() ? '#dcfce7' : '#fef3c7',
-            color: isDbInitialized() ? '#15803d' : '#92400e'
+            'background-color': dbStatus() === 'ready' ? '#dcfce7' : dbStatus() === 'error' ? '#fed7d7' : '#fef3c7',
+            color: dbStatus() === 'ready' ? '#15803d' : dbStatus() === 'error' ? '#c53030' : '#92400e'
           }}>
-            {isDbInitialized() ? '● Database Ready' : '● Initializing...'}
+            {dbStatus() === 'ready' ? '● Database Ready' : dbStatus() === 'error' ? '● Database Error' : '● Initializing...'}
           </div>
           
           <div style={{

@@ -1,39 +1,80 @@
 // src/workers/database.worker.ts
 
-import * as duckdb from '@duckdb/duckdb-wasm';
+// Import only papaparse, which works reliably in workers
 import Papa from 'papaparse';
 
+console.log('[WORKER] Script loaded. Initializing SQLite...');
+
 const connectedPorts: MessagePort[] = [];
-let db: duckdb.AsyncDuckDB;
+let db: any; // The database object from sql.js
+let isDbReady = false;
 
-// Initialize DuckDB when the worker starts
-async function initializeDuckDB() {
+// This function broadcasts a message to all connected UI tabs
+function broadcast(message: any) {
+    console.log('[WORKER] Broadcasting to all UIs:', message);
+    connectedPorts.forEach(port => {
+        try {
+            port.postMessage(message);
+        } catch (error) {
+            console.warn('[WORKER] Failed to send message to port:', error);
+        }
+    });
+}
+
+// Load sql.js dynamically using fetch + eval approach
+async function loadSqlJs() {
     try {
-        const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles();
-        const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES);
-
-        const worker_url = URL.createObjectURL(
-            new Blob([`importScripts("${bundle.mainWorker!}");`], {
-                type: 'application/javascript',
-            }),
-        );
-
-        const worker = new Worker(worker_url);
-        const logger = new duckdb.ConsoleLogger();
-        db = new duckdb.AsyncDuckDB(logger, worker);
-        await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
-        URL.revokeObjectURL(worker_url);
-        console.log('DuckDB Initialized in SharedWorker');
+        // Load sql.js from CDN using fetch
+        const response = await fetch('https://sql.js.org/dist/sql-wasm.js');
+        const sqlJsCode = await response.text();
         
-        // Broadcast initialization complete to all connected tabs
+        // Create a safe evaluation context
+        const initSqlJs = new Function('self', 'importScripts', sqlJsCode + '; return initSqlJs;')(
+            self, 
+            function(url: string) {
+                // Mock importScripts for sql.js compatibility
+                console.log('[WORKER] Mock importScripts called with:', url);
+            }
+        );
+        
+        if (!initSqlJs) {
+            throw new Error('Failed to load initSqlJs function');
+        }
+        
+        // Initialize sql.js with CDN WASM
+        const SQL = await initSqlJs({
+            locateFile: (file: string) => `https://sql.js.org/dist/${file}`
+        });
+        
+        return SQL;
+    } catch (error) {
+        console.error('[WORKER] Failed to load sql.js:', error);
+        throw error;
+    }
+}
+
+// Initialize SQLite when the worker starts
+async function initializeSQLite() {
+    try {
+        console.log('[WORKER] SQLite initialization started.');
+        
+        // Load sql.js dynamically
+        const SQL = await loadSqlJs();
+        
+        // Create a new, empty database
+        db = new SQL.Database();
+        isDbReady = true;
+        
+        console.info('[WORKER] ✔️ SQLite Database Initialized Successfully.');
         broadcast({
             event: 'DB_INITIALIZED',
-            payload: { message: 'DuckDB database ready' }
+            payload: { tables: [] }
         });
+
     } catch (error) {
-        console.error('Failed to initialize DuckDB:', error);
+        console.error("[WORKER] ❌ SQLite initialization failed:", error);
         broadcast({
-            event: 'DB_ERROR',
+            event: 'DB_INIT_ERROR',
             payload: { error: (error as Error).toString() }
         });
     }
@@ -43,21 +84,36 @@ async function initializeDuckDB() {
 (self as any).onconnect = (event: MessageEvent) => {
     const port = event.ports[0];
     connectedPorts.push(port);
+    console.info('[WORKER] ✔️ UI tab connected. Total connections:', connectedPorts.length);
+
+    // If the DB is already initialized, immediately send the ready signal to the new tab
+    if (isDbReady && db) {
+        console.log('[WORKER] DB is ready, informing new tab.');
+        port.postMessage({
+            event: 'DB_INITIALIZED',
+            payload: { tables: [] }
+        });
+    }
 
     port.onmessage = async (e: MessageEvent) => {
         const { command, payload } = e.data;
-        console.log(`Worker received command: ${command}`, payload);
+        console.log(`[WORKER] Received command '${command}' with payload:`, payload);
+        
+        // Only process commands if database is ready
+        if (!isDbReady) {
+            console.warn('[WORKER] Command received but DB not ready yet');
+            port.postMessage({
+                event: 'ERROR',
+                payload: { 
+                    error: 'Database not ready yet. Please wait for initialization to complete.',
+                    requestId: payload?.requestId 
+                }
+            });
+            return;
+        }
         
         try {
             switch (command) {
-                case 'INIT':
-                    // Send initialization status
-                    port.postMessage({
-                        event: 'INIT_RESPONSE',
-                        payload: { initialized: !!db }
-                    });
-                    break;
-                    
                 case 'IMPORT_FILE':
                     await handleImportFile(payload);
                     break;
@@ -71,12 +127,14 @@ async function initializeDuckDB() {
                     break;
                     
                 default:
+                    console.warn(`[WORKER] Unknown command: ${command}`);
                     port.postMessage({
                         event: 'ERROR',
                         payload: { error: `Unknown command: ${command}` }
                     });
             }
         } catch (error) {
+            console.error(`[WORKER] Error processing command '${command}':`, error);
             port.postMessage({
                 event: 'ERROR',
                 payload: {
@@ -98,17 +156,6 @@ async function initializeDuckDB() {
     });
 };
 
-// Function to broadcast events to all connected tabs
-function broadcast(message: any) {
-    connectedPorts.forEach(port => {
-        try {
-            port.postMessage(message);
-        } catch (error) {
-            console.warn('Failed to send message to port:', error);
-        }
-    });
-}
-
 // Handle file import operations
 async function handleImportFile(payload: { 
     requestId: string, 
@@ -118,69 +165,78 @@ async function handleImportFile(payload: {
     hasHeaders?: boolean
 }) {
     const { requestId, fileBuffer, desiredTableName, separator = ',', hasHeaders = true } = payload;
+    console.log(`[WORKER] Starting file import for table: ${desiredTableName}`);
     
     if (!db) {
         throw new Error('Database not initialized');
     }
     
     try {
-        // Convert ArrayBuffer to text for Papa Parse
-        const csvText = new TextDecoder().decode(fileBuffer);
+        // Step A: Parse the CSV using Papa Parse
+        const fileText = new TextDecoder().decode(fileBuffer);
+        console.log(`[WORKER] CSV text length: ${fileText.length} characters`);
         
-        // Parse CSV with Papa Parse
-        const parseResult = Papa.parse(csvText, {
-            delimiter: separator,
+        const parseResult = Papa.parse(fileText, {
             header: hasHeaders,
+            delimiter: separator,
             skipEmptyLines: true,
-            dynamicTyping: true, // Automatically detect types
         });
 
         if (parseResult.errors.length > 0) {
-            console.warn('CSV parsing warnings:', parseResult.errors);
+            console.warn('[WORKER] CSV parsing warnings:', parseResult.errors);
         }
 
-        // Create CSV content for DuckDB
-        let processedCsv: string;
-        if (hasHeaders) {
-            // Papa Parse already handled headers
-            processedCsv = Papa.unparse(parseResult.data, {
-                header: true,
-                delimiter: ','  // Use comma for DuckDB
-            });
-        } else {
-            // Create headers for data without headers
-            const firstRow = parseResult.data[0] as any[];
-            const headers = firstRow ? firstRow.map((_, i) => `Column_${i + 1}`) : [];
-            processedCsv = Papa.unparse(parseResult.data, {
-                header: false,
-                delimiter: ','
-            });
-            // Prepend headers
-            processedCsv = headers.join(',') + '\n' + processedCsv;
+        if (!parseResult.data.length || !parseResult.meta.fields) {
+            throw new Error("CSV is empty or could not be parsed.");
         }
-
-        // Register the processed CSV with DuckDB
-        const csvBuffer = new TextEncoder().encode(processedCsv);
-        await db.registerFileBuffer(`${desiredTableName}.csv`, csvBuffer);
         
-        // Create a connection and import the CSV
-        const c = await db.connect();
-        await c.query(`CREATE OR REPLACE TABLE "${desiredTableName}" AS SELECT * FROM read_csv_auto('${desiredTableName}.csv');`);
+        const headers = parseResult.meta.fields;
+        const data = parseResult.data as Record<string, any>[];
+        console.log(`[WORKER] Papa Parse result: ${data.length} rows, ${headers.length} columns`);
 
-        // Get schema information
-        const schemaResult = await c.query(`PRAGMA table_info("${desiredTableName}");`);
-        const schema = (await schemaResult.toArray()).map(row => row.toJSON());
+        // Step B: Create the table schema from the CSV headers
+        // We'll treat all columns as TEXT for simplicity
+        const createTableSql = `CREATE TABLE IF NOT EXISTS "${desiredTableName}" (${headers.map(h => `"${h}" TEXT`).join(', ')});`;
+        console.log(`[WORKER] Creating table with SQL: ${createTableSql}`);
+        db.run(createTableSql);
 
-        // Get row count
-        const countResult = await c.query(`SELECT COUNT(*) as count FROM "${desiredTableName}";`);
-        const count = (await countResult.toArray())[0].toJSON().count;
+        // Step C: Insert data using efficient prepared statements
+        const placeholders = headers.map(() => '?').join(', ');
+        const insertSql = `INSERT INTO "${desiredTableName}" VALUES (${placeholders});`;
+        const stmt = db.prepare(insertSql);
+        console.log(`[WORKER] Inserting ${data.length} rows...`);
+
+        // Bind and execute for each row
+        data.forEach((row, index) => {
+            const values = headers.map(h => row[h] || null);
+            stmt.run(values);
+            if (index % 100 === 0) {
+                console.log(`[WORKER] Inserted ${index + 1}/${data.length} rows`);
+            }
+        });
+        stmt.free(); // free the memory
+
+        // Step D: Get schema and count for the UI
+        const schemaRes = db.exec(`PRAGMA table_info("${desiredTableName}");`);
+        const schema = schemaRes[0]?.values.map((v: any) => ({ 
+            name: v[1], 
+            type: v[2] 
+        })) || [];
+        
+        const countRes = db.exec(`SELECT COUNT(*) FROM "${desiredTableName}";`);
+        const rowCount = countRes[0]?.values[0]?.[0] as number || 0;
 
         // Get a sample of the data
-        const sampleResult = await c.query(`SELECT * FROM "${desiredTableName}" LIMIT 5;`);
-        const sample = (await sampleResult.toArray()).map(row => row.toJSON());
+        const sampleRes = db.exec(`SELECT * FROM "${desiredTableName}" LIMIT 5;`);
+        const sample = sampleRes[0]?.values.map((row: any) => {
+            const obj: Record<string, any> = {};
+            headers.forEach((header, index) => {
+                obj[header] = row[index];
+            });
+            return obj;
+        }) || [];
 
-        c.close();
-
+        console.info(`[WORKER] ✔️ Successfully created table '${desiredTableName}' with ${rowCount} rows`);
         broadcast({
             event: 'NODE_CREATED',
             payload: {
@@ -188,16 +244,17 @@ async function handleImportFile(payload: {
                 node: {
                     id: desiredTableName,
                     type: 'table',
-                    position: { x: 100, y: 100 }, // Initial position
+                    position: { x: 100, y: 100 },
                     data: {
                         schema,
-                        rowCount: count,
+                        rowCount,
                         sample
                     }
                 }
             }
         });
     } catch (error) {
+        console.error(`[WORKER] ❌ Error importing file for table '${desiredTableName}':`, error);
         broadcast({
             event: 'IMPORT_ERROR',
             payload: {
@@ -220,10 +277,17 @@ async function handleExecuteQuery(payload: {
     }
     
     try {
-        const c = await db.connect();
-        const result = await c.query(query);
-        const data = (await result.toArray()).map(row => row.toJSON());
-        c.close();
+        console.log(`[WORKER] Executing query: ${query}`);
+        const result = db.exec(query);
+        
+        // Convert result to a more convenient format
+        const data = result[0]?.values.map((row: any) => {
+            const obj: Record<string, any> = {};
+            result[0].columns.forEach((col: any, index: any) => {
+                obj[col] = row[index];
+            });
+            return obj;
+        }) || [];
 
         broadcast({
             event: 'QUERY_RESULT',
@@ -257,17 +321,16 @@ async function handleGetTableInfo(payload: {
     }
     
     try {
-        const c = await db.connect();
-        
         // Get schema
-        const schemaResult = await c.query(`PRAGMA table_info("${tableName}");`);
-        const schema = (await schemaResult.toArray()).map(row => row.toJSON());
+        const schemaRes = db.exec(`PRAGMA table_info("${tableName}");`);
+        const schema = schemaRes[0]?.values.map((v: any) => ({ 
+            name: v[1], 
+            type: v[2] 
+        })) || [];
         
         // Get row count
-        const countResult = await c.query(`SELECT COUNT(*) as count FROM "${tableName}";`);
-        const count = (await countResult.toArray())[0].toJSON().count;
-        
-        c.close();
+        const countRes = db.exec(`SELECT COUNT(*) FROM "${tableName}";`);
+        const rowCount = countRes[0]?.values[0]?.[0] as number || 0;
 
         broadcast({
             event: 'TABLE_INFO',
@@ -275,7 +338,7 @@ async function handleGetTableInfo(payload: {
                 requestId,
                 tableName,
                 schema,
-                rowCount: count
+                rowCount
             }
         });
     } catch (error) {
@@ -290,5 +353,5 @@ async function handleGetTableInfo(payload: {
     }
 }
 
-// Initialize DuckDB when the worker starts
-initializeDuckDB();
+// Initialize SQLite when the worker starts
+initializeSQLite();

@@ -13,12 +13,13 @@
     "docker:clean": "docker-compose down -v --rmi all"
   },
   "dependencies": {
-    "@duckdb/duckdb-wasm": "^1.29.1-dev132.0",
     "@thisbeyond/solid-dnd": "^0.7.5",
-    "solid-js": "^1.9.7"
+    "solid-js": "^1.9.7",
+    "sql.js": "^1.13.0"
   },
   "devDependencies": {
     "@types/papaparse": "^5.3.16",
+    "@types/sql.js": "^1.4.9",
     "papaparse": "^5.5.3",
     "typescript": "~5.8.3",
     "vite": "^7.0.3",

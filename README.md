@@ -5,6 +5,7 @@ A powerful, browser-based visual SQL environment built with SolidJS, TypeScript,
 ## 🚀 Features
 
 ### Phase 1 (Current Implementation)
+- **Automatic Database Initialization**: The app automatically initializes DuckDB when it starts, with clear status indicators
 - **Drag & Drop CSV Import**: Simply drag CSV files onto the canvas to import them as database tables
 - **CSV Preview Modal**: Preview your data before import with configurable separator and header options
 - **Advanced CSV Parsing**: Powered by Papa Parse for robust CSV handling with automatic type detection
@@ -12,6 +13,7 @@ A powerful, browser-based visual SQL environment built with SolidJS, TypeScript,
 - **In-Browser Database**: Powered by DuckDB-WASM running in a SharedWorker for optimal performance
 - **Real-time Data Processing**: Full SQL capabilities with no server required
 - **Modern UI**: Clean, responsive interface built with SolidJS
+- **Status Overlays**: Clear visual feedback during database initialization and error states
 
 ### Upcoming Features (Phase 2+)
 - Data viewer modal with filtering and sorting
@@ -94,6 +96,12 @@ The application will be available at `http://localhost:5173`
 1. **Start the Application**: Run `npm run dev` and open `http://localhost:5173`
 
 ### Common Usage Steps
+1. **Database Initialization**: 
+   - When you first open the app, you'll see an "Initializing Database..." overlay
+   - Wait for the database to initialize (usually takes 1-3 seconds)
+   - The overlay will disappear when the database is ready
+   - If there's an error, you'll see an error overlay with details
+
 2. **Import Data**: 
    - Drag and drop any CSV file onto the canvas
    - A preview modal will appear showing your data

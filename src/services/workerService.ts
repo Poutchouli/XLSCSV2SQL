@@ -17,6 +17,7 @@ class WorkerService {
     private isInitialized = false;
 
     constructor() {
+        console.log('[WORKER SERVICE] Initializing SharedWorker...');
         // Create the SharedWorker
         this.worker = new SharedWorker(
             new URL('../workers/database.worker.ts', import.meta.url), 
@@ -29,25 +30,27 @@ class WorkerService {
         this.port = this.worker.port;
         this.setupEventHandlers();
         this.port.start();
-        
-        // Initialize the worker
-        this.sendCommand('INIT', {});
+        console.log('[WORKER SERVICE] SharedWorker started');
     }
 
     private setupEventHandlers() {
         this.port.onmessage = (event: MessageEvent<WorkerMessage>) => {
             const { event: eventName, payload } = event.data;
-            console.log(`Received event from worker: ${eventName}`, payload);
+            console.log(`[WORKER SERVICE] Received event from worker: ${eventName}`, payload); // Log all messages
             
             // Handle initialization
             if (eventName === 'DB_INITIALIZED') {
                 this.isInitialized = true;
+                console.log('[WORKER SERVICE] Database marked as initialized');
             }
             
             // Call registered handlers
             const handler = this.messageHandlers.get(eventName);
             if (handler) {
+                console.log(`[WORKER SERVICE] Calling handler for event: ${eventName}`);
                 handler(payload);
+            } else {
+                console.warn(`[WORKER SERVICE] No handler registered for event: ${eventName}`);
             }
             
             // Also call wildcard handlers
@@ -58,7 +61,7 @@ class WorkerService {
         };
 
         this.worker.onerror = (error: ErrorEvent) => {
-            console.error('SharedWorker error:', error);
+            console.error('[WORKER SERVICE] SharedWorker error:', error);
         };
     }
 
@@ -73,18 +76,20 @@ class WorkerService {
             }
         };
         
-        console.log(`Sending command to worker: ${command}`, message);
+        console.log(`[WORKER SERVICE] Sending command to worker: ${command}`, message); // Log outgoing commands
         this.port.postMessage(message);
         return requestId;
     }
 
     // Register an event handler
     on(event: string, handler: (payload: any) => void) {
+        console.log(`[WORKER SERVICE] Registering handler for event: ${event}`);
         this.messageHandlers.set(event, handler);
     }
 
     // Remove an event handler
     off(event: string) {
+        console.log(`[WORKER SERVICE] Removing handler for event: ${event}`);
         this.messageHandlers.delete(event);
     }
 
